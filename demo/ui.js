@@ -2,23 +2,22 @@
 
 import * as fastboot from "../dist/fastboot.mjs";
 
-// 1. 初始化核心实例
+// 初始化设备实例
 let device = new fastboot.FastbootDevice();
-window.device = device; // 挂载到全局方便调试
+window.device = device;
 
 // 开启调试日志
 fastboot.setDebugLevel(2);
 
 /**
- * 终端日志系统
+ * 终端日志输出
  */
-function log(message, type = 'info') {
+function terminalLog(message, type = 'info') {
     const logOutput = document.getElementById('log-output');
     if (!logOutput) return;
 
     const div = document.createElement('div');
     div.style.marginBottom = "5px";
-    div.style.lineHeight = "1.4";
     
     if (type === 'error') div.style.color = "var(--accent-red)";
     else if (type === 'success') div.style.color = "var(--primary-gold)";
@@ -32,57 +31,28 @@ function log(message, type = 'info') {
 }
 
 /**
- * 自动同步设备变量信息
- */
-async function fetchDeviceInfo() {
-    try {
-        const product = await device.getVariable("product");
-        const serial = await device.getVariable("serialno");
-        const cpu = await device.getVariable("cpu");
-        const unlocked = await device.getVariable("unlocked");
-
-        // 填充首页卡片
-        document.getElementById('info-prod').innerText = product || "未知机型";
-        document.getElementById('info-seri').innerText = serial || "未知序列号";
-        document.getElementById('info-cpu').innerText = cpu || "未知架构";
-        
-        const lockEl = document.getElementById('info-lock');
-        lockEl.innerText = unlocked === "yes" ? "UNLOCKED" : "LOCKED";
-        lockEl.style.color = unlocked === "yes" ? "#00ff41" : "var(--accent-red)";
-
-        // 更新主状态显示
-        const statusField = document.getElementById("status-text");
-        statusField.textContent = "已就绪 (READY)";
-        statusField.style.color = "var(--primary-gold)";
-
-        log(`设备变量同步成功: ${product}`, "success");
-    } catch (e) {
-        log("变量读取失败: " + e.message, "error");
-    }
-}
-
-/**
- * 进度条更新逻辑
+ * 更新进度条 ( window 级函数 )
  */
 window.updateProgress = (val) => {
     const wrap = document.getElementById('prog-wrap');
     const bar = document.getElementById('prog-bar');
-    if (!wrap || !bar) return;
-
-    wrap.style.display = 'block';
-    bar.style.width = val + '%';
-    
-    if (val >= 100) {
-        setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+    if (wrap && bar) {
+        wrap.style.display = 'block';
+        bar.style.width = val + '%';
+        if (val >= 100) {
+            setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+        }
     }
 };
 
 /**
- * 核心：免责声明接受逻辑 (修复无法前往下一层的问题)
+ * --- 核心修复：免责声明接受逻辑 ---
+ * 通过 window.acceptTerms 显式暴露给 HTML 里的 onclick
  */
 window.acceptTerms = () => {
     const overlay = document.getElementById('disclaimer-overlay');
     if (overlay) {
+        // iOS 渐隐与缩放动画
         overlay.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
         overlay.style.opacity = '0';
         overlay.style.transform = 'scale(1.1) translateY(-20px)';
@@ -91,31 +61,59 @@ window.acceptTerms = () => {
             overlay.style.display = 'none';
         }, 600);
         
+        // 触感反馈
         if (window.navigator.vibrate) window.navigator.vibrate([10, 30]);
-        log("神圣契约已签署，系统权限已解锁。");
+        terminalLog("契约已生效，SHARK OS 权限已解锁。");
     }
 };
 
 /**
- * 核心：唤醒设备
+ * 自动同步设备信息
  */
-async function connectDevice() {
+async function fetchDeviceInfo() {
     try {
-        log("正在寻找处于虚空(Fastboot)模式的设备...");
-        await device.connect();
-        await fetchDeviceInfo();
-        if (window.navigator.vibrate) window.navigator.vibrate(50);
-    } catch (error) {
-        log("连接中断: " + error.message, "error");
+        const prod = await device.getVariable("product");
+        const seri = await device.getVariable("serialno");
+        const cpu = await device.getVariable("cpu");
+        const lock = await device.getVariable("unlocked");
+
+        document.getElementById('info-prod').innerText = prod || "Unknown";
+        document.getElementById('info-seri').innerText = seri || "Unknown";
+        document.getElementById('info-cpu').innerText = cpu || "Unknown";
+        
+        const lockEl = document.getElementById('info-lock');
+        lockEl.innerText = lock === "yes" ? "UNLOCKED" : "LOCKED";
+        lockEl.style.color = lock === "yes" ? "#00ff41" : "var(--accent-red)";
+
+        const statusField = document.getElementById("status-text");
+        statusField.textContent = "已连接";
+        statusField.style.color = "var(--primary-gold)";
+
+        terminalLog(`实体同步完成: ${prod}`, "success");
+    } catch (e) {
+        terminalLog("信息读取失败: " + e.message, "error");
     }
 }
 
 /**
- * 核心：品牌解锁
+ * 唤醒设备
+ */
+async function connectDevice() {
+    try {
+        terminalLog("正在搜寻虚空中的 USB 信号...");
+        await device.connect();
+        await fetchDeviceInfo();
+    } catch (error) {
+        terminalLog(`唤醒失败: ${error.message}`, "error");
+    }
+}
+
+/**
+ * 品牌解锁逻辑
  */
 window.handleUnlock = async (brand) => {
-    if (!device.isConnected) return log("请先唤醒设备！", "error");
-    log(`发起 ${brand} 强制解锁协议...`);
+    if (!device.isConnected) return terminalLog("设备未连接", "error");
+    terminalLog(`执行 ${brand} 解锁协议...`);
     try {
         const b = brand.toLowerCase();
         if (b === "xiaomi") await device.runCommand("oem unlock");
@@ -124,77 +122,68 @@ window.handleUnlock = async (brand) => {
         } else {
             await device.runCommand("oem unlock");
         }
-        log(`${brand} 指令执行完毕`, "success");
+        terminalLog(`${brand} 指令发送成功`, "success");
     } catch (e) {
-        log("指令被拒绝: " + e.message, "error");
+        terminalLog(`拒绝访问: ${e.message}`, "error");
     }
 };
 
 /**
- * 核心：Shark Root (SELinux Permissive)
+ * KernelSU 临时提权
  */
 async function runSharkRoot() {
-    if (!device.isConnected) return log("虚空未连通", "error");
+    if (!device.isConnected) return terminalLog("虚空未连通", "error");
     try {
-        log("注入 KernelSU 提权指令...");
+        terminalLog("注入提权指令 (Permissive)...");
         window.updateProgress(40);
         await device.runCommand("oem set-gpu-preemption 0 androidboot.selinux=permissive");
         
         window.updateProgress(80);
-        log("指令发送成功，正在执行重启...");
+        terminalLog("指令成功，强制重启中...");
         await device.runCommand("continue");
         
         window.updateProgress(100);
-        log("设备已指令重启，请等待开机。", "success");
+        terminalLog("流程结束，请等待开机。", "success");
     } catch (e) {
         window.updateProgress(0);
-        log("Root 流程失败: " + e.message, "error");
+        terminalLog(`Root 失败: ${e.message}`, "error");
     }
 }
 
 /**
- * 核心：灵魂灌注 (刷写)
+ * 镜像刷写
  */
 async function flashFile() {
     const file = document.getElementById("file-input").files[0];
     const part = document.getElementById("part-input").value;
 
-    if (!file || !part) {
-        alert("请选择镜像并输入目标分区");
-        return;
-    }
+    if (!file || !part) return alert("请指定分区和镜像文件");
 
     try {
-        log(`正在向 ${part} 烧录灵魂镜像...`);
+        terminalLog(`开始向 ${part} 灌注数据...`);
         await device.flashBlob(part, file, (p) => {
             const progress = p * 100;
             window.updateProgress(progress);
-            if (Math.round(progress) % 25 === 0) log(`当前同步率: ${progress.toFixed(0)}%`);
+            if (Math.round(progress) % 25 === 0) terminalLog(`进度: ${progress.toFixed(0)}%`);
         });
-        log(`${part} 刷写达成！`, "success");
+        terminalLog(`${part} 刷写达成！`, "success");
     } catch (e) {
         window.updateProgress(0);
-        log("刷写失败: " + e.message, "error");
+        terminalLog(`烧录中断: ${e.message}`, "error");
     }
 }
 
 /**
- * 事件挂载
+ * 初始化绑定
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // 首页
     document.getElementById("connect-btn")?.addEventListener("click", connectDevice);
     document.getElementById("root-btn")?.addEventListener("click", runSharkRoot);
-    
-    // 刷写页
     document.getElementById("flash-btn")?.addEventListener("click", flashFile);
 
-    // USB 状态自动更新
     navigator.usb.addEventListener("disconnect", () => {
         document.getElementById("status-text").innerText = "已消失";
         document.getElementById("status-text").style.color = "var(--accent-red)";
-        log("设备已脱离现实连接。", "error");
+        terminalLog("USB 连接已断开", "error");
     });
 });
-
-// @license-end
