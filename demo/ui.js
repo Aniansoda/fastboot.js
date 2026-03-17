@@ -2,203 +2,198 @@
 
 import * as fastboot from "../dist/fastboot.mjs";
 
-/**
- * SHARK OS | 川上富江二创版 核心逻辑
- */
+// 1. 初始化核心实例
 let device = new fastboot.FastbootDevice();
-window.device = device;
+window.device = device; // 挂载到全局方便调试
 
-// 开启 verbose 级别日志
+// 开启调试日志
 fastboot.setDebugLevel(2);
 
 /**
- * 终端日志系统：适配液态玻璃容器
+ * 终端日志系统
  */
-function terminalLog(message, type = 'info') {
+function log(message, type = 'info') {
     const logOutput = document.getElementById('log-output');
     if (!logOutput) return;
 
     const div = document.createElement('div');
-    div.style.padding = "2px 0";
-    div.style.borderBottom = "1px solid rgba(255,255,255,0.02)";
+    div.style.marginBottom = "5px";
+    div.style.lineHeight = "1.4";
     
-    // 颜色语义化
-    if (type === 'error') div.innerHTML = `<span style="color:var(--accent-red)">[!] ERROR:</span> ${message}`;
-    else if (type === 'success') div.innerHTML = `<span style="color:var(--primary-gold)">[+] SUCCESS:</span> ${message}`;
-    else div.innerHTML = `<span style="opacity:0.5">> </span>${message}`;
+    if (type === 'error') div.style.color = "var(--accent-red)";
+    else if (type === 'success') div.style.color = "var(--primary-gold)";
+    else div.style.color = "#00ff41"; // 极客绿
+    
+    const time = new Date().toLocaleTimeString();
+    div.innerHTML = `<span style="opacity:0.4">[${time}]</span> ${message}`;
     
     logOutput.appendChild(div);
     logOutput.scrollTop = logOutput.scrollHeight;
 }
 
 /**
- * 核心功能：自动抓取并填充设备所有变量
+ * 自动同步设备变量信息
  */
-async function syncDeviceVariables() {
-    terminalLog("正在同步虚空变量...");
+async function fetchDeviceInfo() {
     try {
-        const vars = {
-            'product': 'info-prod',
-            'serialno': 'info-seri',
-            'cpu': 'info-cpu',
-            'unlocked': 'info-lock'
-        };
+        const product = await device.getVariable("product");
+        const serial = await device.getVariable("serialno");
+        const cpu = await device.getVariable("cpu");
+        const unlocked = await device.getVariable("unlocked");
 
-        for (const [key, id] of Object.entries(vars)) {
-            const val = await device.getVariable(key);
-            const el = document.getElementById(id);
-            if (el) {
-                if (key === 'unlocked') {
-                    el.innerText = val === "yes" ? "UNLOCKED" : "LOCKED";
-                    el.style.color = val === "yes" ? "#00ff41" : "var(--accent-red)";
-                } else {
-                    el.innerText = val || "UNKNOWN";
-                }
-            }
-        }
+        // 填充首页卡片
+        document.getElementById('info-prod').innerText = product || "未知机型";
+        document.getElementById('info-seri').innerText = serial || "未知序列号";
+        document.getElementById('info-cpu').innerText = cpu || "未知架构";
         
-        // 更新主状态文本
+        const lockEl = document.getElementById('info-lock');
+        lockEl.innerText = unlocked === "yes" ? "UNLOCKED" : "LOCKED";
+        lockEl.style.color = unlocked === "yes" ? "#00ff41" : "var(--accent-red)";
+
+        // 更新主状态显示
         const statusField = document.getElementById("status-text");
         statusField.textContent = "已就绪 (READY)";
         statusField.style.color = "var(--primary-gold)";
-        
-        terminalLog("所有实体数据已同步完成", "success");
+
+        log(`设备变量同步成功: ${product}`, "success");
     } catch (e) {
-        terminalLog("变量同步中断: " + e.message, "error");
+        log("变量读取失败: " + e.message, "error");
     }
 }
 
 /**
- * 进度条控制：适配 HTML 中的 window.updateProgress
+ * 进度条更新逻辑
  */
-function updateUIProgress(val) {
-    if (window.updateProgress) {
-        window.updateProgress(val);
-    }
-}
+window.updateProgress = (val) => {
+    const wrap = document.getElementById('prog-wrap');
+    const bar = document.getElementById('prog-bar');
+    if (!wrap || !bar) return;
 
-/**
- * 1. 唤醒设备逻辑
- */
-async function connectDevice() {
-    try {
-        terminalLog("发起 WebUSB 握手请求...");
-        await device.connect();
-        await syncDeviceVariables();
-        
-        // 增加震动反馈
-        if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
-    } catch (error) {
-        terminalLog(`唤醒失败: ${error.message}`, 'error');
-    }
-}
-
-/**
- * 2. 品牌解锁契约
- */
-window.handleUnlock = async (brand) => {
-    if (!device.isConnected) return terminalLog("虚空未连通，无法执行契约", "error");
+    wrap.style.display = 'block';
+    bar.style.width = val + '%';
     
-    terminalLog(`正在向 ${brand} 发送引导加载程序解锁指令...`);
-    try {
-        const b = brand.toLowerCase();
-        // 适配更多机型指令
-        if (b === "xiaomi") await device.runCommand("oem unlock");
-        else if (["oneplus", "oppo", "realme", "redmagic", "nubia"].includes(b)) {
-            await device.runCommand("flashing unlock");
-        } else if (b === "samsung") {
-            terminalLog("三星设备请在 Download 模式下操作，Fastboot 仅支持通用命令", "error");
-            await device.runCommand("oem unlock");
-        } else {
-            await device.runCommand("flashing unlock");
-        }
-        terminalLog(`${brand} 指令已接受`, 'success');
-    } catch (error) {
-        terminalLog(`指令被拒绝: ${error.message}`, 'error');
+    if (val >= 100) {
+        setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0%'; }, 1500);
     }
 };
 
 /**
- * 3. 鲨鱼 KernelSU 核心注入逻辑
+ * 核心：免责声明接受逻辑 (修复无法前往下一层的问题)
+ */
+window.acceptTerms = () => {
+    const overlay = document.getElementById('disclaimer-overlay');
+    if (overlay) {
+        overlay.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+        overlay.style.opacity = '0';
+        overlay.style.transform = 'scale(1.1) translateY(-20px)';
+        
+        setTimeout(() => {
+            overlay.style.display = 'none';
+        }, 600);
+        
+        if (window.navigator.vibrate) window.navigator.vibrate([10, 30]);
+        log("神圣契约已签署，系统权限已解锁。");
+    }
+};
+
+/**
+ * 核心：唤醒设备
+ */
+async function connectDevice() {
+    try {
+        log("正在寻找处于虚空(Fastboot)模式的设备...");
+        await device.connect();
+        await fetchDeviceInfo();
+        if (window.navigator.vibrate) window.navigator.vibrate(50);
+    } catch (error) {
+        log("连接中断: " + error.message, "error");
+    }
+}
+
+/**
+ * 核心：品牌解锁
+ */
+window.handleUnlock = async (brand) => {
+    if (!device.isConnected) return log("请先唤醒设备！", "error");
+    log(`发起 ${brand} 强制解锁协议...`);
+    try {
+        const b = brand.toLowerCase();
+        if (b === "xiaomi") await device.runCommand("oem unlock");
+        else if (["oneplus", "oppo", "realme", "redmagic", "nubia"].includes(b)) {
+            await device.runCommand("flashing unlock");
+        } else {
+            await device.runCommand("oem unlock");
+        }
+        log(`${brand} 指令执行完毕`, "success");
+    } catch (e) {
+        log("指令被拒绝: " + e.message, "error");
+    }
+};
+
+/**
+ * 核心：Shark Root (SELinux Permissive)
  */
 async function runSharkRoot() {
-    if (!device.isConnected) return terminalLog("设备未连接", "error");
-    
+    if (!device.isConnected) return log("虚空未连通", "error");
     try {
-        terminalLog("开始注入提权协议 (SELinux Permissive)...");
-        updateUIProgress(30);
-        
-        // 执行脚本核心 OEM 命令
+        log("注入 KernelSU 提权指令...");
+        window.updateProgress(40);
         await device.runCommand("oem set-gpu-preemption 0 androidboot.selinux=permissive");
         
-        updateUIProgress(70);
-        terminalLog("注入成功，正在强制重启至系统...");
-        
+        window.updateProgress(80);
+        log("指令发送成功，正在执行重启...");
         await device.runCommand("continue");
         
-        updateUIProgress(100);
-        terminalLog("转生仪式完成，请等待手机重启。", "success");
-    } catch (error) {
-        updateUIProgress(0);
-        terminalLog(`注入失败: ${error.message}`, 'error');
+        window.updateProgress(100);
+        log("设备已指令重启，请等待开机。", "success");
+    } catch (e) {
+        window.updateProgress(0);
+        log("Root 流程失败: " + e.message, "error");
     }
 }
 
 /**
- * 4. 灵魂灌注 (Flash Blob)
+ * 核心：灵魂灌注 (刷写)
  */
 async function flashFile() {
-    const fileField = document.getElementById("file-input");
-    const partField = document.getElementById("part-input");
-    const file = fileField.files[0];
-    const partition = partField.value;
+    const file = document.getElementById("file-input").files[0];
+    const part = document.getElementById("part-input").value;
 
-    if (!file || !partition) return terminalLog("素材或载体(分区)缺失", "error");
+    if (!file || !part) {
+        alert("请选择镜像并输入目标分区");
+        return;
+    }
 
     try {
-        terminalLog(`正在向 ${partition} 灌注灵魂...`);
-        updateUIProgress(1);
-
-        await device.flashBlob(partition, file, (progress) => {
-            const p = progress * 100;
-            updateUIProgress(p); // 同步到液态进度条
-            if (Math.round(p) % 20 === 0) {
-                terminalLog(`同步中... ${p.toFixed(1)}%`);
-            }
+        log(`正在向 ${part} 烧录灵魂镜像...`);
+        await device.flashBlob(part, file, (p) => {
+            const progress = p * 100;
+            window.updateProgress(progress);
+            if (Math.round(progress) % 25 === 0) log(`当前同步率: ${progress.toFixed(0)}%`);
         });
-
-        updateUIProgress(100);
-        terminalLog(`${partition} 分区灵魂灌注成功`, "success");
-    } catch (error) {
-        updateUIProgress(0);
-        terminalLog(`灌注失败: ${error.message}`, 'error');
+        log(`${part} 刷写达成！`, "success");
+    } catch (e) {
+        window.updateProgress(0);
+        log("刷写失败: " + e.message, "error");
     }
 }
 
 /**
- * 初始化绑定
+ * 事件挂载
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // 首页按钮
+    // 首页
     document.getElementById("connect-btn")?.addEventListener("click", connectDevice);
     document.getElementById("root-btn")?.addEventListener("click", runSharkRoot);
     
-    // 刷写按钮
+    // 刷写页
     document.getElementById("flash-btn")?.addEventListener("click", flashFile);
-    
-    // USB 自动状态监听
+
+    // USB 状态自动更新
     navigator.usb.addEventListener("disconnect", () => {
-        const statusField = document.getElementById("status-text");
-        statusField.textContent = "未连接";
-        statusField.style.color = "var(--accent-red)";
-        
-        // 重置信息格
-        ['info-prod', 'info-seri', 'info-cpu', 'info-lock'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = "None";
-        });
-        
-        terminalLog("连接已断开", "error");
+        document.getElementById("status-text").innerText = "已消失";
+        document.getElementById("status-text").style.color = "var(--accent-red)";
+        log("设备已脱离现实连接。", "error");
     });
 });
 
