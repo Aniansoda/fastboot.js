@@ -9,31 +9,200 @@
             --primary-gold: #d4af37;
             --ios-blur: blur(25px);
             --bg-dark: #050505;
-            --glass-white: rgba(255, 255, 255, 0.03);
+            --glass-white: rgba(255, 255, 255, 0.04);
             --accent-red: #ff3b30;
             --material-shadow: 0 12px 40px rgba(0, 0, 0, 0.9);
             --progress-gradient: linear-gradient(90deg, #8b0000, #d4af37);
         }
 
         body, html {
-            margin: 0; padding: 0; height: 100%;
+            margin: 0; padding: 0;
             background: var(--bg-dark);
             color: white;
-            font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
-            overflow: hidden;
+            font-family: -apple-system, "SF Pro Display", sans-serif;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* 液态背景层 */
+        /* 背景特效 */
         .liquid-bg {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             z-index: -1; background: #000;
         }
         .blob {
-            position: absolute; width: 600px; height: 600px;
-            background: radial-gradient(circle, rgba(212,175,55,0.12) 0%, rgba(255,0,0,0.05) 100%);
-            border-radius: 50%; filter: blur(100px);
-            animation: move 25s infinite alternate ease-in-out;
+            position: absolute; width: 80vw; height: 80vw;
+            background: radial-gradient(circle, rgba(212,175,55,0.1) 0%, rgba(255,0,0,0.05) 100%);
+            border-radius: 50%; filter: blur(80px);
+            animation: move 20s infinite alternate linear;
         }
+        @keyframes move { from { transform: translate(-10%, -10%); } to { transform: translate(30%, 30%); } }
+
+        /* 主容器 */
+        .scroller {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 40px 20px 80px 20px;
+        }
+
+        /* 标题设计 */
+        header { text-align: center; margin-bottom: 40px; }
+        h1 { font-weight: 200; letter-spacing: 6px; color: var(--primary-gold); margin: 0; }
+        .author { font-size: 10px; color: var(--accent-red); letter-spacing: 3px; margin-top: 5px; opacity: 0.8; }
+
+        /* 通用卡片样式 */
+        .card {
+            background: var(--glass-white);
+            backdrop-filter: var(--ios-blur);
+            -webkit-backdrop-filter: var(--ios-blur);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 25px;
+            box-shadow: var(--material-shadow);
+        }
+
+        h2 { font-size: 14px; font-weight: 400; color: #888; text-transform: uppercase; margin: 0 0 15px 5px; letter-spacing: 1px; }
+
+        /* 信息网格 */
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .info-item { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
+        .info-label { font-size: 9px; color: #666; margin-bottom: 4px; }
+        .info-value { font-size: 13px; color: #eee; font-family: monospace; }
+
+        /* 按钮体系 */
+        .btn {
+            width: 100%; padding: 16px; border-radius: 18px; border: none;
+            background: rgba(255,255,255,0.05); color: white;
+            font-weight: 600; margin-top: 10px; cursor: pointer; transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn:active { transform: scale(0.96); background: rgba(255,255,255,0.1); }
+        .btn-gold { border-color: var(--primary-gold); color: var(--primary-gold); }
+        .btn-red { border-color: var(--accent-red); color: var(--accent-red); }
+
+        /* 品牌按钮组 */
+        .brand-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-small { padding: 12px; font-size: 12px; border-radius: 14px; margin: 0; }
+
+        /* 输入框 */
+        input {
+            width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            padding: 14px; border-radius: 14px; color: white; margin-bottom: 15px; box-sizing: border-box;
+        }
+
+        /* 进度条 */
+        .progress-box { height: 4px; width: 100%; background: rgba(255,255,255,0.05); border-radius: 2px; margin-bottom: 15px; overflow: hidden; display: none; }
+        .progress-fill { height: 100%; width: 0%; background: var(--progress-gradient); transition: width 0.3s; }
+
+        /* 终端输出 */
+        .terminal {
+            background: rgba(0,0,0,0.5); border-radius: 18px; padding: 15px;
+            font-family: 'Cascadia Code', monospace; font-size: 11px;
+            color: #00ff41; height: 160px; overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="liquid-bg"><div class="blob"></div></div>
+
+    <div class="scroller">
+        <header>
+            <h1>SHARK OS</h1>
+            <div class="author">BY TOMIE KAWAKAMI</div>
+        </header>
+
+        <h2>Device Status</h2>
+        <div class="card">
+            <div style="margin-bottom: 15px; font-size: 13px;">
+                机魂状态: <span id="status-text" style="color:var(--accent-red)">未感应到设备</span>
+            </div>
+            <div class="info-grid">
+                <div class="info-item"><div class="info-label">PRODUCT</div><div id="info-prod" class="info-value">-</div></div>
+                <div class="info-item"><div class="info-label">SERIAL</div><div id="info-seri" class="info-value">-</div></div>
+                <div class="info-item"><div class="info-label">CPU</div><div id="info-cpu" class="info-value">-</div></div>
+                <div class="info-item"><div class="info-label">BOOTLOADER</div><div id="info-lock" class="info-value">-</div></div>
+            </div>
+            <button class="btn btn-gold" id="connect-btn">唤醒 USB 设备</button>
+        </div>
+
+        <h2>Core Functions</h2>
+        <div class="card" style="border-left: 3px solid var(--accent-red);">
+            <div style="font-size: 13px; color: var(--accent-red); margin-bottom: 10px;">KernelSU 临时 Root 协议</div>
+            <button class="btn" id="root-btn">注入提权指令 (Permissive)</button>
+        </div>
+
+        <h2>Brand Unlock</h2>
+        <div class="card">
+            <div class="brand-grid">
+                <button class="btn btn-small" onclick="handleUnlock('xiaomi')">Xiaomi</button>
+                <button class="btn btn-small" onclick="handleUnlock('oneplus')">OnePlus</button>
+                <button class="btn btn-small" onclick="handleUnlock('redmagic')">RedMagic</button>
+                <button class="btn btn-small" onclick="handleUnlock('samsung')">Samsung</button>
+            </div>
+        </div>
+
+        <h2>Flash Partition</h2>
+        <div class="card">
+            <div class="progress-box" id="prog-wrap"><div class="progress-fill" id="prog-bar"></div></div>
+            <input type="text" id="part-input" placeholder="输入分区名 (如 boot)">
+            <input type="file" id="file-input">
+            <button class="btn btn-gold" id="flash-btn">开始灵魂灌注</button>
+        </div>
+
+        <h2>System Terminal</h2>
+        <div class="card" style="padding: 12px;">
+            <div class="terminal" id="log-output">Waiting for command...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { FastbootDevice } from "./ui.js"; 
+        const device = new FastbootDevice();
+
+        // 绑定连接
+        document.getElementById('connect-btn').onclick = async () => {
+            try {
+                await device.connect();
+                const prod = await device.getVariable("product");
+                const seri = await device.getVariable("serialno");
+                const cpu = await device.getVariable("cpu");
+                const lock = await device.getVariable("unlocked");
+
+                document.getElementById('info-prod').innerText = prod || "Unknown";
+                document.getElementById('info-seri').innerText = seri || "Unknown";
+                document.getElementById('info-cpu').innerText = cpu || "Unknown";
+                document.getElementById('info-lock').innerText = lock === "yes" ? "Unlocked" : "Locked";
+                
+                document.getElementById('status-text').innerText = "已连接到虚空";
+                document.getElementById('status-text').style.color = "var(--primary-gold)";
+                log("设备识别成功。");
+            } catch (e) {
+                log("连接失败: " + e.message);
+            }
+        };
+
+        // 终端日志
+        const logOutput = document.getElementById('log-output');
+        function log(m) {
+            logOutput.innerHTML += `<div><span style="color:var(--primary-gold)">></span> ${m}</div>`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        // 进度条控制
+        window.updateProgress = (val) => {
+            const wrap = document.getElementById('prog-wrap');
+            const bar = document.getElementById('prog-bar');
+            wrap.style.display = 'block';
+            bar.style.width = val + '%';
+            if(val >= 100) setTimeout(() => wrap.style.display = 'none', 1500);
+        };
+
+        log("SHARK OS 系统初始化完成。");
+    </script>
+</body>
+</html>
         @keyframes move {
             from { transform: translate(-30%, -30%) scale(1); }
             to { transform: translate(50%, 50%) scale(1.2); }
